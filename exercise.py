@@ -109,7 +109,7 @@ def Convert_2D_to_3D(x, y, R = 6400*1000, d = 450*1000, f = 2, pixelsize = 5e-6,
 
 def Convert_2D_to_surface(x,y,R = 6400*1000, d = 450*1000, f = 2, pixelsize = 5e-6, az = 0, el = 0):
     ground_point = np.array(sph2cart(az, el, R))
-    satellite_focal_point, dir_z = GetSatellitePositionFromGround(ground_point)
+    satellite_focal_point, dir_z = GetSatellitePositionFromGround(ground_point,d=d)
     satellite_rot_mat = GetRotationMatrix(az, el)
     Np = len(x)
     surface_point3D = np.zeros((3,Np))
@@ -302,16 +302,16 @@ def question3():
 def question4():
     print("Question 4:")
     start = timeit.default_timer()
-    Nx = 5000
-    Ny = 100
+    Nx = 800
+    Ny = 400
     img = np.zeros((Ny*2+1, Nx*2+1))
     x = np.linspace(-Nx,Nx,2*Nx+1)
     y = np.linspace(-Ny,Ny,2*Ny+1)
     xv,yv = np.meshgrid(x,y)
     ix = xv.flatten()
     iy = yv.flatten()
-    point3Ds = Convert_2D_to_surface(x = ix, y = iy)
-    psf_img = cv2.imread("sample3.png", 0)
+    point3Ds = Convert_2D_to_surface(x = ix, y = iy, d=449.9*1000)
+    psf_img = cv2.imread("calibration.png", 0)
     point3Ds[1,:] += (psf_img.shape[1])/2
     point3Ds[2,:] += (psf_img.shape[0])/2 
     for i in range(point3Ds.shape[1]):
@@ -325,9 +325,37 @@ def question4():
             # print("({0},{1}) --> ({2},{3},{4}) ({5},{6},{7})\n".format(ix, iy, point3D[0], point3D[1], point3D[2], az, el, r))
     stop = timeit.default_timer()
     print('Time: ', stop - start)
-    cv2.imwrite("sample3_satellite.png",img)  
+    cv2.imwrite("sample_satellite_d_449.9.png",img)  
     
 
+def simulate_images():
+    Nx = 800
+    Ny = 400
+    x = np.linspace(-Nx,Nx,2*Nx+1)
+    y = np.linspace(-Ny,Ny,2*Ny+1)
+    xv,yv = np.meshgrid(x,y)
+    ix = xv.flatten()
+    iy = yv.flatten()
+    psf_img = cv2.imread("calibration.png", 0)
+    for d in [445000, 449000, 449900, 450000,450100, 451000, 455000]:
+        start = timeit.default_timer()
+        img = np.zeros((Ny*2+1, Nx*2+1))
+        point3Ds = Convert_2D_to_surface(x = ix, y = iy, d=d)
+        point3Ds[1,:] += (psf_img.shape[1])/2
+        point3Ds[2,:] += (psf_img.shape[0])/2 
+        for i in range(point3Ds.shape[1]):
+            if point3Ds[1,i]< 0 or point3Ds[1,i] > psf_img.shape[1]:
+                continue
+            if point3Ds[2,i]< 0 or point3Ds[2,i] > psf_img.shape[0]:
+                continue
+            val = psf_img[int(point3Ds[2,i]), int(point3Ds[1,i])] 
+            img[int(iy[i]+Ny), int(ix[i]+Nx)] = val
+                # az, el, r = cart2sph(point3D)
+                # print("({0},{1}) --> ({2},{3},{4}) ({5},{6},{7})\n".format(ix, iy, point3D[0], point3D[1], point3D[2], az, el, r))
+        stop = timeit.default_timer()
+        print('Time: ', stop - start)
+        cv2.imwrite("sample_satellite_d_{0}.png".format(d),img)  
+    
 def question5():
     print("Question 5:")
     d=450*1000
@@ -372,11 +400,28 @@ def blurImg():
     psf_fimg = cv2.blur(psf_img,(100,3))
     cv2.imwrite("sample3.png",psf_fimg)
     
+def test_simulated_img():
+    img0 = cv2.imread("sample_satellite_d_449900.png",0)
+    img1 = cv2.imread("sample_satellite_d_450000.png",0)
+    img2 = cv2.imread("sample_satellite_d_450100.png",0)
+    img = np.stack((img0,img1,img2),axis=2)
+    mean_img = np.mean(img,axis=2)
+    diff_img = img-np.stack((mean_img,mean_img,mean_img),axis=2)
+    total_delta = np.sum(np.abs(diff_img))
+    ax1 = plt.subplot(2,2,1)
+    plt.imshow(img), plt.title("overlapped images")
+    plt.subplot(2,2,2,sharex=ax1, sharey=ax1), plt.imshow(mean_img), plt.title("mean image")
+    plt.subplot(2,2,3,sharex=ax1, sharey=ax1), plt.imshow(diff_img), plt.title("{0}".format(total_delta))
+    plt.show()
+
 if __name__ == "__main__":
+    # simulate_images()
+    test_simulated_img()
     # blurImg()
     # createImg(10001,201)
-    question1()
-    question2()
-    question3()
-    question4()
-    question5()
+    # question1()
+    # question2()
+    # question3()
+    # question4()
+    # question5()
+    
